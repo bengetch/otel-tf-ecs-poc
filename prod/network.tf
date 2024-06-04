@@ -2,10 +2,20 @@ resource "aws_vpc" "vpc" {
   cidr_block = "10.0.0.0/16"
 }
 
-resource "aws_subnet" "subnet" {
+resource "aws_internet_gateway" "gw" {
+  vpc_id = aws_vpc.vpc.id
+}
+
+resource "aws_subnet" "subnet_one" {
   vpc_id            = aws_vpc.vpc.id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = var.aws_region
+  cidr_block        = "10.0.0.0/20"
+  availability_zone = "us-east-2a"
+}
+
+resource "aws_subnet" "subnet_two" {
+  vpc_id            = aws_vpc.vpc.id
+  cidr_block        = "10.0.16.0/20"
+  availability_zone = "us-east-2b"
 }
 
 resource "aws_service_discovery_private_dns_namespace" "private_dns_namespace" {

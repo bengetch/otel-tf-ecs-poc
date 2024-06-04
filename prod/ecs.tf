@@ -6,8 +6,8 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
   family                   = format("%s-task", var.app_name)
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "512"
-  memory                   = "512"
+  cpu                      = "1024"
+  memory                   = "2 GB"
 
   container_definitions = jsonencode([
     {
@@ -33,11 +33,11 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         },
         {
           name = "ENDPOINT_SERVICE_A",
-          value = "service-a:5000"
+          value = "service-a:5001"
         },
         {
           name = "ENDPOINT_SERVICE_B",
-          value = "service-b:5000"
+          value = "service-b:5002"
         },
         {
           name = "TRACES_EXPORTER",
@@ -50,6 +50,10 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         {
           name = "LOGS_EXPORTER",
           value = "noop"
+        },
+        {
+          name = "SELF_PORT",
+          value = "5000"
         }
       ]
     },
@@ -61,8 +65,8 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
       essential = true
       portMappings = [
         {
-          containerPort = 5000
-          hostPort = 5000
+          containerPort = 5001
+          hostPort = 5001
         }
       ],
       environment = [
@@ -76,7 +80,7 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         },
         {
           name = "ENDPOINT_SERVICE_B",
-          value = "service-b:5000"
+          value = "service-b:5002"
         },
         {
           name = "TRACES_EXPORTER",
@@ -89,6 +93,10 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         {
           name = "LOGS_EXPORTER",
           value = "noop"
+        },
+        {
+          name = "SELF_PORT",
+          value = "5001"
         }
       ]
     },
@@ -100,8 +108,8 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
       essential = true
       portMappings = [
         {
-          containerPort = 5000
-          hostPort = 5000
+          containerPort = 5002
+          hostPort = 5002
         }
       ],
       environment = [
@@ -124,6 +132,10 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         {
           name = "LOGS_EXPORTER",
           value = "noop"
+        },
+        {
+          name = "SELF_PORT",
+          value = "5002"
         }
       ]
     },
@@ -169,7 +181,7 @@ resource "aws_ecs_service" "service_entrypoint" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.subnet.id]
+    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
     security_groups = [aws_security_group.ecs_sg.id]
   }
 
@@ -182,6 +194,8 @@ resource "aws_ecs_service" "service_entrypoint" {
     container_name   = "service-entrypoint"
     container_port   = 5000
   }
+
+  depends_on = [aws_lb.load_balancer.arn]
 }
 
 resource "aws_ecs_service" "service_a" {
@@ -192,7 +206,7 @@ resource "aws_ecs_service" "service_a" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.subnet.id]
+    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
     security_groups = [aws_security_group.ecs_sg.id]
   }
 
@@ -209,7 +223,7 @@ resource "aws_ecs_service" "service_b" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.subnet.id]
+    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
     security_groups = [aws_security_group.ecs_sg.id]
   }
 
@@ -226,7 +240,7 @@ resource "aws_ecs_service" "collector" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.subnet.id]
+    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
     security_groups = [aws_security_group.ecs_sg.id]
   }
 
