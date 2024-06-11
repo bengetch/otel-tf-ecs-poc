@@ -2,19 +2,19 @@ resource "aws_ecs_cluster" "otel_service_cluster" {
   name = format("%s-cluster", var.app_name)
 }
 
-resource "aws_ecs_task_definition" "ecs_tasks" {
-  family                   = format("%s-task", var.app_name)
-  network_mode             = "awsvpc"
+resource "aws_ecs_task_definition" "task-entrypoint" {
+  family = format("%s-entrypoint", var.app_name)
+  network_mode = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "1024"
-  memory                   = "2 GB"
+  cpu = "512"
+  memory = "1 GB"
 
   container_definitions = jsonencode([
     {
       name = "service-entrypoint"
-      image = "bengetch/otel-poc-service:entrypoint"
-      cpu = 128
-      memory = 128
+      image = "bengetch/otel-poc-service:entrypoint-x86"
+      cpu = 256
+      memory = 512
       essential = true
       portMappings = [
         {
@@ -22,6 +22,14 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
           hostPort = 5000
         }
       ],
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/service-entrypoint"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
       environment = [
         {
           name = "SERVICE_NAME",
@@ -29,27 +37,27 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         },
         {
           name = "OTEL_EXPORTER_OTLP_ENDPOINT",
-          value = format("collector:%s", var.collector_grpc_port)
+          value = format("localhost:%s", tostring(var.datadog_grpc_port))
         },
         {
           name = "ENDPOINT_SERVICE_A",
-          value = "service-a:5001"
+          value = "service-a.otel-app-namespace:5000"
         },
         {
           name = "ENDPOINT_SERVICE_B",
-          value = "service-b:5002"
+          value = "service-b.otel-app-namespace:5000"
         },
         {
           name = "TRACES_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "METRICS_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "LOGS_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "SELF_PORT",
@@ -58,17 +66,93 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
       ]
     },
     {
-      name = "service-a"
-      image = "bengetch/otel-poc-service:a"
-      cpu = 128
-      memory = 128
+      name = "datadog"
+      image = "datadog/agent:latest"
+      cpu = 256
+      memory = 512
       essential = true
       portMappings = [
         {
-          containerPort = 5001
-          hostPort = 5001
+          containerPort = var.datadog_grpc_port
+          hostPort = var.datadog_grpc_port
         }
-      ],
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/service-entrypoint"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+      environment = [
+        {
+          name = "DD_SITE",
+          value = var.datadog_api_site
+        },
+        {
+          name = "DD_API_KEY",
+          value = var.datadog_api_key
+        },
+        {
+          name = "ECS_FARGATE",
+          value = "true"
+        },
+        {
+          name = "DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT",
+          value = format("localhost:%s", tostring(var.datadog_grpc_port))
+        },
+        {
+          name = "DD_APM_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_LOGS_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_OTLP_CONFIG_LOGS_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_HOSTNAME",
+          value = "datadog"
+        }
+      ]
+    }
+  ])
+
+  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn      = aws_iam_role.ecs_task_execution_role.arn
+}
+
+resource "aws_ecs_task_definition" "task-service-a" {
+  family = format("%s-service-a", var.app_name)
+  network_mode = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu = "512"
+  memory = "1 GB"
+  container_definitions = jsonencode([
+    {
+      name = "service-a"
+      image = "bengetch/otel-poc-service:a-x86"
+      cpu = 256
+      memory = 512
+      essential = true
+      portMappings = [
+        {
+          containerPort = 5000
+          hostPort = 5000
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/service-a"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
       environment = [
         {
           name = "SERVICE_NAME",
@@ -76,42 +160,118 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         },
         {
           name = "OTEL_EXPORTER_OTLP_ENDPOINT",
-          value = format("collector:%s", var.collector_grpc_port)
+          value = format("localhost:%s", tostring(var.datadog_grpc_port))
         },
         {
           name = "ENDPOINT_SERVICE_B",
-          value = "service-b:5002"
+          value = "service-b.otel-app-namespace:5000"
         },
         {
           name = "TRACES_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "METRICS_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "LOGS_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "SELF_PORT",
-          value = "5001"
+          value = "5000"
         }
       ]
     },
     {
-      name = "service-b"
-      image = "bengetch/otel-poc-service:b"
-      cpu = 128
-      memory = 128
+      name = "datadog"
+      image = "datadog/agent:latest"
+      cpu = 256
+      memory = 512
       essential = true
       portMappings = [
         {
-          containerPort = 5002
-          hostPort = 5002
+          containerPort = var.datadog_grpc_port
+          hostPort = var.datadog_grpc_port
         }
-      ],
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/service-a"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+      environment = [
+        {
+          name = "DD_SITE",
+          value = var.datadog_api_site
+        },
+        {
+          name = "DD_API_KEY",
+          value = var.datadog_api_key
+        },
+        {
+          name = "ECS_FARGATE",
+          value = "true"
+        },
+        {
+          name = "DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT",
+          value = format("localhost:%s", tostring(var.datadog_grpc_port))
+        },
+        {
+          name = "DD_APM_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_LOGS_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_OTLP_CONFIG_LOGS_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_HOSTNAME",
+          value = "datadog"
+        }
+      ]
+    }
+  ])
+
+  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn      = aws_iam_role.ecs_task_execution_role.arn
+}
+
+resource "aws_ecs_task_definition" "task-service-b" {
+  family = format("%s-service-b", var.app_name)
+  network_mode = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu = "512"
+  memory = "1 GB"
+  container_definitions = jsonencode([
+    {
+      name = "service-b"
+      image = "bengetch/otel-poc-service:b-x86"
+      cpu = 256
+      memory = 512
+      essential = true
+      portMappings = [
+        {
+          containerPort = 5000
+          hostPort = 5000
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/service-b"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
       environment = [
         {
           name = "SERVICE_NAME",
@@ -119,53 +279,80 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
         },
         {
           name = "OTEL_EXPORTER_OTLP_ENDPOINT",
-          value = format("collector:%s", var.collector_grpc_port)
+          value = format("localhost:%s", tostring(var.datadog_grpc_port))
         },
         {
           name = "TRACES_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "METRICS_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "LOGS_EXPORTER",
-          value = "noop"
+          value = "otel"
         },
         {
           name = "SELF_PORT",
-          value = "5002"
+          value = "5000"
         }
       ]
     },
     {
-      name = "collector"
-      image = "bengetch/otel-poc-service:collector"
-      cpu = 128
-      memory = 128
+      name = "datadog"
+      image = "datadog/agent:latest"
+      cpu = 256
+      memory = 512
       essential = true
       portMappings = [
         {
-          containerPort = 4317
-          hostPort = 4317
-        },
-        {
-          containerPort = 4318
-          hostPort = 4318
+          containerPort = var.datadog_grpc_port
+          hostPort = var.datadog_grpc_port
         }
-      ],
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = "/ecs/service-b"
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
       environment = [
         {
-          name = "DATADOG_API_SITE",
+          name = "DD_SITE",
           value = var.datadog_api_site
         },
         {
-          name = "DATADOG_API_KEY",
+          name = "DD_API_KEY",
           value = var.datadog_api_key
+        },
+        {
+          name = "ECS_FARGATE",
+          value = "true"
+        },
+        {
+          name = "DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT",
+          value = format("localhost:%s", tostring(var.datadog_grpc_port))
+        },
+        {
+          name = "DD_APM_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_LOGS_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_OTLP_CONFIG_LOGS_ENABLED",
+          value = "true"
+        },
+        {
+          name = "DD_HOSTNAME",
+          value = "datadog"
         }
       ]
-      command = ["--config", "/etc/collector-config.yml"]
     }
   ])
 
@@ -176,38 +363,31 @@ resource "aws_ecs_task_definition" "ecs_tasks" {
 resource "aws_ecs_service" "service_entrypoint" {
   name            = "service-entrypoint"
   cluster         = aws_ecs_cluster.otel_service_cluster.id
-  task_definition = aws_ecs_task_definition.ecs_tasks.arn
+  task_definition = aws_ecs_task_definition.task-entrypoint.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
-    security_groups = [aws_security_group.ecs_sg.id]
+    subnets         = aws_subnet.public[*].id
+    security_groups = [aws_security_group.ecs.id]
+    assign_public_ip = true
   }
 
   service_registries {
     registry_arn = aws_service_discovery_service.service_entrypoint.arn
   }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.lb_group.arn
-    container_name   = "service-entrypoint"
-    container_port   = 5000
-  }
-
-  depends_on = [aws_lb.load_balancer.arn]
 }
 
 resource "aws_ecs_service" "service_a" {
   name            = "service-a"
   cluster         = aws_ecs_cluster.otel_service_cluster.id
-  task_definition = aws_ecs_task_definition.ecs_tasks.arn
+  task_definition = aws_ecs_task_definition.task-service-a.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
-    security_groups = [aws_security_group.ecs_sg.id]
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
   }
 
   service_registries {
@@ -218,33 +398,16 @@ resource "aws_ecs_service" "service_a" {
 resource "aws_ecs_service" "service_b" {
   name            = "service-b"
   cluster         = aws_ecs_cluster.otel_service_cluster.id
-  task_definition = aws_ecs_task_definition.ecs_tasks.arn
+  task_definition = aws_ecs_task_definition.task-service-b.arn
   desired_count   = 1
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
-    security_groups = [aws_security_group.ecs_sg.id]
+    subnets         = aws_subnet.private[*].id
+    security_groups = [aws_security_group.ecs.id]
   }
 
   service_registries {
     registry_arn = aws_service_discovery_service.service_b.arn
-  }
-}
-
-resource "aws_ecs_service" "collector" {
-  name            = "collector"
-  cluster         = aws_ecs_cluster.otel_service_cluster.id
-  task_definition = aws_ecs_task_definition.ecs_tasks.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    subnets         = [aws_subnet.subnet_one.id, aws_subnet.subnet_two.id]
-    security_groups = [aws_security_group.ecs_sg.id]
-  }
-
-  service_registries {
-    registry_arn = aws_service_discovery_service.collector.arn
   }
 }

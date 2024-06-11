@@ -10,16 +10,10 @@ variable "app_name" {
   default = "otel-app"
 }
 
-variable "collector_grpc_port" {
+variable "datadog_grpc_port" {
   description = "port on collector service to use for GRPC"
-  type = string
-  default = "4317"
-}
-
-variable "collector_http_port" {
-  description = "port on collector service to use for HTTP"
-  type = string
-  default = "4318"
+  type = number
+  default = 4317
 }
 
 variable "datadog_api_site" {
