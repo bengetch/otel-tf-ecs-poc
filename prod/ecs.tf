@@ -57,7 +57,7 @@ resource "aws_ecs_task_definition" "task-entrypoint" {
         },
         {
           name = "LOGS_EXPORTER",
-          value = "otel"
+          value = "stdout"
         },
         {
           name = "SELF_PORT",
@@ -368,7 +368,7 @@ resource "aws_ecs_service" "service_entrypoint" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = aws_subnet.public[*].id
+    subnets         = [aws_subnet.public.id]
     security_groups = [aws_security_group.ecs.id]
     assign_public_ip = true
   }
@@ -386,7 +386,7 @@ resource "aws_ecs_service" "service_a" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = aws_subnet.private[*].id
+    subnets         = [aws_subnet.private.id]
     security_groups = [aws_security_group.ecs.id]
   }
 
@@ -403,7 +403,7 @@ resource "aws_ecs_service" "service_b" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets         = aws_subnet.private[*].id
+    subnets         = [aws_subnet.private.id]
     security_groups = [aws_security_group.ecs.id]
   }
 
