@@ -1,5 +1,5 @@
 resource "aws_service_discovery_private_dns_namespace" "private_dns_namespace" {
-  name        = "otel-app-namespace"
+  name        = "otel-app-namespace.internal"
   vpc         = aws_vpc.vpc.id
   description = "private DNS namespace"
 }

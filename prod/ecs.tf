@@ -41,11 +41,11 @@ resource "aws_ecs_task_definition" "task-entrypoint" {
         },
         {
           name = "ENDPOINT_SERVICE_A",
-          value = "service-a.otel-app-namespace:5000"
+          value = "service-a.otel-app-namespace.internal:5000"
         },
         {
           name = "ENDPOINT_SERVICE_B",
-          value = "service-b.otel-app-namespace:5000"
+          value = "service-b.otel-app-namespace.internal:5000"
         },
         {
           name = "TRACES_EXPORTER",
@@ -164,7 +164,7 @@ resource "aws_ecs_task_definition" "task-service-a" {
         },
         {
           name = "ENDPOINT_SERVICE_B",
-          value = "service-b.otel-app-namespace:5000"
+          value = "service-b.otel-app-namespace.internal:5000"
         },
         {
           name = "TRACES_EXPORTER",
@@ -376,6 +376,7 @@ resource "aws_ecs_service" "service_entrypoint" {
   service_registries {
     registry_arn = aws_service_discovery_service.service_entrypoint.arn
   }
+  enable_execute_command = true
 }
 
 resource "aws_ecs_service" "service_a" {
